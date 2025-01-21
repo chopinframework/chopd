@@ -1,7 +1,10 @@
 {
-  "name": "local-vrp",
-  "version": "1.0.0",
+  "name": "chopd",
+  "version": "0.0.1",
   "main": "index.js",
+  "bin": {
+    "chopd": "./index.js"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

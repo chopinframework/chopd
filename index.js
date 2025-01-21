@@ -42,6 +42,9 @@ chopinRouter.use(express.json());
 
 // /_chopin/login?as=0x<40-hex>
 chopinRouter.get('/login', (req, res) => {
+  if (req.headers['x-address']) {
+    return { success: true, address: req.headers['x-address'] }
+  }
   let address = req.query.as;
   if (!address || !/^0x[0-9A-Fa-f]{40}$/.test(address)) {
     const randomHex = crypto.randomBytes(20).toString('hex');
@@ -51,7 +54,7 @@ chopinRouter.get('/login', (req, res) => {
     httpOnly: false,
     sameSite: 'strict',
   });
-  res.json({ success: true, devAddress: address });
+  res.json({ success: true, address: address });
 });
 
 // /_chopin/report-context?requestId=...
