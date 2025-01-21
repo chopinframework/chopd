@@ -4,26 +4,16 @@
  * test-runner.js
  * Spawns:
  *   1) test-server.js (port 3100)
- *   2) index.js (your main proxy) on port 4000 -> 3100
+ *   2) index.js (proxy) on port 4000 -> 3100
  *
- * Then it runs:
- *   - GET /hello -> 200
- *   - GET /bogus-route -> 404
- *   - Two concurrent POST /slow -> ensures queue is enforced (no concurrency)
- *   - GET /check-concurrency -> verifies concurrencyError=FALSE
- *   - GET /_chopin/login?as=<valid 40-hex> -> sets dev-address cookie
- *   - GET /echo-headers with that cookie -> should see X-Address = same 40-hex
- *
- * If anything fails or times out, we increment failCount and exit(1).
- * Otherwise passCount increments and we exit(0).
+ * Tests concurrency, dev-address, partial context, etc.
  */
 
 const { spawn } = require('child_process');
 
-// If Node 20+, fetch is built in. If Node 18, might need `node --experimental-fetch`.
 async function safeFetch(url, opts = {}) {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), 2000); // 2s timeout
+  const id = setTimeout(() => controller.abort(), 2000);
   try {
     const res = await fetch(url, { signal: controller.signal, ...opts });
     clearTimeout(id);
@@ -35,24 +25,24 @@ async function safeFetch(url, opts = {}) {
 }
 
 function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(r => setTimeout(r, ms));
 }
 
-// 1) Start the test server on 3100
-console.log('[TEST-RUNNER] Starting test-server.js on port 3100...');
+// 1) Start test-server
+console.log('[TEST-RUNNER] Starting test-server.js on 3100...');
 const serverProcess = spawn('node', ['test-server.js'], {
-  stdio: 'inherit', // pass logs
+  stdio: 'inherit',
   env: { ...process.env, TEST_SERVER_PORT: '3100' },
 });
 
-// 2) Start your proxy script (index.js) on 4000 -> 3100
-console.log('[TEST-RUNNER] Starting proxy (index.js) on port 4000 -> 3100...');
+// 2) Start proxy on 4000->3100
+console.log('[TEST-RUNNER] Starting proxy (index.js) on 4000->3100...');
 const proxyProcess = spawn('node', ['index.js', '4000', '3100'], {
   stdio: 'inherit',
 });
 
 async function runTests() {
-  console.log('[TEST-RUNNER] Waiting 1s for servers to start up...');
+  console.log('[TEST-RUNNER] Wait 1s for processes to come up...');
   await delay(1000);
 
   let passCount = 0;
@@ -62,16 +52,16 @@ async function runTests() {
   try {
     const res = await safeFetch('http://localhost:4000/hello');
     if (res.ok) {
-      const text = await res.text();
-      console.log('[TEST-RUNNER] GET /hello ->', res.status, text);
+      const txt = await res.text();
+      console.log('[TEST-RUNNER] GET /hello ->', res.status, txt);
       passCount++;
     } else {
-      console.log('[TEST-RUNNER] GET /hello -> FAIL:', res.status);
       failCount++;
+      console.log('[TEST-RUNNER] GET /hello FAIL status=', res.status);
     }
   } catch (err) {
-    console.log('[TEST-RUNNER] GET /hello -> ERROR/HANG:', err.message);
     failCount++;
+    console.log('[TEST-RUNNER] GET /hello ERROR/HANG:', err.message);
   }
 
   // 2) 404 test
@@ -81,77 +71,74 @@ async function runTests() {
     if (res.status === 404) passCount++;
     else failCount++;
   } catch (err) {
-    console.log('[TEST-RUNNER] GET /bogus-route -> ERROR/HANG:', err.message);
     failCount++;
+    console.log('[TEST-RUNNER] GET /bogus-route ERROR/HANG:', err.message);
   }
 
-  // 3) Two concurrent POST /slow
-  console.log('[TEST-RUNNER] Sending 2 concurrent POST /slow...');
+  // 3) concurrency test with 2 concurrent POST /slow
+  console.log('[TEST-RUNNER] concurrency test: 2 POST /slow in parallel...');
   const postPromises = [1, 2].map(async i => {
     try {
-      const res = await safeFetch('http://localhost:4000/slow', {
+      const r = await safeFetch('http://localhost:4000/slow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client: i }),
       });
-      if (res.status === 201) {
-        const json = await res.json();
-        console.log(`[TEST-RUNNER] POST /slow #${i} -> 201`, json);
+      if (r.status === 201) {
+        const j = await r.json();
+        console.log(`[TEST-RUNNER] POST /slow #${i} -> 201`, j);
         return true;
       } else {
-        console.log(`[TEST-RUNNER] POST /slow #${i} -> FAIL status=`, res.status);
+        console.log(`[TEST-RUNNER] POST /slow #${i} -> FAIL status=`, r.status);
         return false;
       }
     } catch (err) {
-      console.log(`[TEST-RUNNER] POST /slow #${i} -> ERROR/HANG`, err.message);
+      console.log(`[TEST-RUNNER] POST /slow #${i} ERROR/HANG`, err.message);
       return false;
     }
   });
   const results = await Promise.all(postPromises);
   results.forEach(ok => { ok ? passCount++ : failCount++; });
 
-  // 4) GET /check-concurrency
+  // 4) check-concurrency -> concurrencyError=FALSE
   try {
-    const res = await safeFetch('http://localhost:3100/check-concurrency');
-    if (!res.ok) {
-      console.log('[TEST-RUNNER] GET /check-concurrency -> FAIL status=', res.status);
+    const r = await safeFetch('http://localhost:3100/check-concurrency');
+    if (!r.ok) {
       failCount++;
+      console.log('[TEST-RUNNER] GET /check-concurrency FAIL status=', r.status);
     } else {
-      const { concurrencyError } = await res.json();
+      const { concurrencyError } = await r.json();
       if (concurrencyError) {
-        console.log('[TEST-RUNNER] concurrencyError=TRUE -> queue not enforced!');
         failCount++;
+        console.log('[TEST-RUNNER] concurrencyError=TRUE -> queue not enforced!');
       } else {
-        console.log('[TEST-RUNNER] concurrencyError=FALSE -> queue is enforced');
         passCount++;
+        console.log('[TEST-RUNNER] concurrencyError=FALSE -> queue enforced');
       }
     }
   } catch (err) {
-    console.log('[TEST-RUNNER] GET /check-concurrency -> ERROR/HANG:', err.message);
     failCount++;
+    console.log('[TEST-RUNNER] GET /check-concurrency ERROR/HANG:', err.message);
   }
 
-  // 5) Test dev-address cookie -> X-Address
-  const FAKE_ADDRESS = '0x1111111111111111111111111111111111111111'; // valid 40-hex
+  // 5) dev-address test
+  const FAKE_ADDRESS = '0x1111111111111111111111111111111111111111';
   try {
-    console.log('[TEST-RUNNER] Setting dev-address cookie with as=', FAKE_ADDRESS);
-    // 5a) /_chopin/login
+    console.log('[TEST-RUNNER] Setting dev-address=?', FAKE_ADDRESS);
     const loginRes = await safeFetch(`http://localhost:4000/_chopin/login?as=${FAKE_ADDRESS}`);
     if (!loginRes.ok) {
-      console.log('[TEST-RUNNER] /_chopin/login -> FAIL status=', loginRes.status);
       failCount++;
+      console.log('[TEST-RUNNER] /_chopin/login FAIL status=', loginRes.status);
     } else {
       passCount++;
     }
     const setCookie = loginRes.headers.get('set-cookie');
-    console.log('[TEST-RUNNER] /_chopin/login set-cookie=', setCookie);
+    console.log('[TEST-RUNNER] set-cookie=', setCookie);
 
-    // 5b) GET /echo-headers with that cookie -> see if x-address = FAKE_ADDRESS
+    // check x-address by calling /echo-headers w/ that cookie
     if (setCookie) {
       const echoRes = await safeFetch('http://localhost:4000/echo-headers', {
-        headers: {
-          Cookie: setCookie,
-        },
+        headers: { Cookie: setCookie },
       });
       if (echoRes.ok) {
         const headersJson = await echoRes.json();
@@ -165,20 +152,77 @@ async function runTests() {
         }
       } else {
         failCount++;
-        console.log('[TEST-RUNNER] GET /echo-headers -> FAIL status=', echoRes.status);
+        console.log('[TEST-RUNNER] GET /echo-headers FAIL status=', echoRes.status);
       }
     } else {
       failCount++;
-      console.log('[TEST-RUNNER] No Set-Cookie from /_chopin/login');
+      console.log('[TEST-RUNNER] no Set-Cookie from /_chopin/login');
     }
   } catch (err) {
     failCount++;
-    console.log('[TEST-RUNNER] dev-address test -> ERROR/HANG:', err.message);
+    console.log('[TEST-RUNNER] dev-address test ERROR/HANG:', err.message);
   }
 
-  console.log(`[TEST-RUNNER] passCount=${passCount}, failCount=${failCount}`);
+  // 6) Now the partial context test: multiple contexts from the test server
+  //    We'll do a single POST /slow, which triggers 3 partial logs from the server
+  //    Then we confirm in /_chopin/logs that we have the correct order
+  console.log('[TEST-RUNNER] Multi-context test: POST /slow => context #1,#2,#3...');
+  try {
+    // Do one POST /slow
+    const res = await safeFetch('http://localhost:4000/slow', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ test: 'multi-context' }),
+    });
+    if (res.status !== 201) {
+      failCount++;
+      console.log('[TEST-RUNNER] single POST /slow => FAIL status=', res.status);
+    } else {
+      passCount++;
+      console.log('[TEST-RUNNER] single POST /slow => 201 done');
 
-  // stop processes
+      // Now let's check /_chopin/logs
+      const logsRes = await safeFetch('http://localhost:4000/_chopin/logs');
+      if (!logsRes.ok) {
+        failCount++;
+        console.log('[TEST-RUNNER] GET /_chopin/logs => FAIL status=', logsRes.status);
+      } else {
+        const logsJson = await logsRes.json();
+        if (!Array.isArray(logsJson) || logsJson.length < 1) {
+          failCount++;
+          console.log('[TEST-RUNNER] No queued logs at all?');
+        } else {
+          // The last queued request should be our single POST /slow
+          const last = logsJson[logsJson.length - 1];
+          console.log('[TEST-RUNNER] last log entry =>', last);
+          const { contexts } = last;
+          if (!contexts) {
+            failCount++;
+            console.log('[TEST-RUNNER] no contexts array in last log entry');
+          } else {
+            // Expect ["context #1","context #2","context #3"] in this order
+            const expected = ['context #1', 'context #2', 'context #3'];
+            if (contexts.length === 3 &&
+              contexts[0] === 'context #1' &&
+              contexts[1] === 'context #2' &&
+              contexts[2] === 'context #3') {
+              passCount++;
+              console.log('[TEST-RUNNER] partial contexts confirmed in correct order');
+            } else {
+              failCount++;
+              console.log('[TEST-RUNNER] partial contexts mismatch -> got:', contexts);
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    failCount++;
+    console.log('[TEST-RUNNER] multi-context test => ERROR/HANG', err.message);
+  }
+
+  // Final results
+  console.log(`[TEST-RUNNER] passCount=${passCount}, failCount=${failCount}`);
   await delay(500);
   console.log('[TEST-RUNNER] stopping processes...');
   serverProcess.kill('SIGTERM');
