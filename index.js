@@ -1,36 +1,20 @@
 #!/usr/bin/env node
 
-/**
- * Final concurrency proxy with:
- *  - /_chopin/login sets a dev-address cookie
- *  - /_chopin/report-context?requestId=... appends partial context logs
- *  - /_chopin/logs shows only queued "write" requests + partial logs
- *  - Queues POST, PUT, PATCH, DELETE (single concurrency)
- *  - Sets X-Callback-Url for queued requests
- *  - If dev-address cookie is present, sets X-Address on *all* proxied requests
- *  - Skips logging GET or other non-queued methods
- */
-
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const onFinished = require('on-finished');
 const crypto = require('crypto');
 
-// CLI arguments for optional ports
+// CLI args
 const [, , proxyPortArg, targetPortArg] = process.argv;
 const PROXY_PORT = proxyPortArg ? parseInt(proxyPortArg, 10) : 4000;
 const TARGET_PORT = targetPortArg ? parseInt(targetPortArg, 10) : 3000;
 
 const app = express();
 
-/* ------------------------------------------------------------------
-   1) Cookie Parser and dev-address -> X-Address logic
-      (This must come BEFORE the queue + proxy)
------------------------------------------------------------------- */
+// 1) Global cookie parse -> dev-address => X-Address
 app.use(cookieParser());
-
-// If dev-address cookie is set, add X-Address to the request
 app.use((req, res, next) => {
   const devAddress = req.cookies['dev-address'];
   if (devAddress) {
@@ -40,17 +24,10 @@ app.use((req, res, next) => {
 });
 
 /* ------------------------------------------------------------------
-   2) In-memory structures for queued logs + context
+   Data structures for queued logs + contexts
 ------------------------------------------------------------------ */
-// We only queue + log these methods
 const queueMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
-
-// Minimal log entries for queued requests
-// e.g. { method, url, timestamp, requestId }
 let queuedLogs = [];
-
-// For partial context logs
-// contextsMap.get(requestId) -> array of strings
 const contextsMap = new Map();
 
 // Single concurrency
@@ -58,19 +35,15 @@ let isProcessing = false;
 const requestQueue = [];
 
 /* ------------------------------------------------------------------
-   3) Define /_chopin routes FIRST, so they are NOT proxied or queued
+   /_chopin routes (defined first)
 ------------------------------------------------------------------ */
-
-// We'll attach a sub-router for /_chopin
 const chopinRouter = express.Router();
-// For these routes, we can parse JSON
 chopinRouter.use(express.json());
 
-// /_chopin/login?as=0x<40-hex> sets dev-address cookie
+// /_chopin/login?as=0x<40-hex>
 chopinRouter.get('/login', (req, res) => {
   let address = req.query.as;
   if (!address || !/^0x[0-9A-Fa-f]{40}$/.test(address)) {
-    // generate random 40-hex
     const randomHex = crypto.randomBytes(20).toString('hex');
     address = `0x${randomHex}`;
   }
@@ -81,34 +54,30 @@ chopinRouter.get('/login', (req, res) => {
   res.json({ success: true, devAddress: address });
 });
 
-// /_chopin/report-context?requestId=... -> partial logs
+// /_chopin/report-context?requestId=...
 chopinRouter.post('/report-context', (req, res) => {
   const { requestId } = req.query;
   if (!requestId) {
-    return res.status(400).json({ error: 'Missing requestId in query' });
+    return res.status(400).json({ error: 'Missing requestId' });
   }
   const arr = contextsMap.get(requestId);
   if (!arr) {
-    // means we don't have that requestId
     return res.status(404).json({ error: 'No matching requestId' });
   }
   const { context } = req.body || {};
   if (typeof context !== 'string') {
-    return res.status(400).json({ error: 'Invalid or missing context string' });
+    return res.status(400).json({ error: 'Invalid context' });
   }
   arr.push(context);
   res.json({ success: true });
 });
 
-// /_chopin/logs -> show queued "write" requests + context messages
+// /_chopin/logs -> show queued logs + context
 chopinRouter.get('/logs', (req, res) => {
-  // combine queuedLogs with contextsMap
-  const combined = queuedLogs.map((logEntry) => {
-    const copy = { ...logEntry };
+  const combined = queuedLogs.map((entry) => {
+    const copy = { ...entry };
     const arr = contextsMap.get(copy.requestId);
-    if (arr) {
-      copy.contexts = arr;
-    }
+    if (arr) copy.contexts = arr;
     return copy;
   });
   res.json(combined);
@@ -117,24 +86,26 @@ chopinRouter.get('/logs', (req, res) => {
 app.use('/_chopin', chopinRouter);
 
 /* ------------------------------------------------------------------
-   4) Queue Middleware (for POST/PUT/PATCH/DELETE)
+   Queue middleware
 ------------------------------------------------------------------ */
 function queueMiddleware(req, res, next) {
-  // Skip if not a queued method
+  // If it's a WebSocket upgrade, skip queue
+  if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
+    return next();
+  }
+
+  // If not in queueMethods, skip
   if (!queueMethods.includes(req.method.toUpperCase())) {
     return next();
   }
 
   // Generate requestId
   const requestId = crypto.randomUUID();
-
   // Build callback URL
   const hostHeader = req.headers.host || `localhost:${PROXY_PORT}`;
   const callbackUrl = `http://${hostHeader}/_chopin/report-context?requestId=${requestId}`;
-  // Insert X-Callback-Url
   req.headers['x-callback-url'] = callbackUrl;
 
-  // Log it
   const logEntry = {
     method: req.method,
     url: req.url,
@@ -142,11 +113,8 @@ function queueMiddleware(req, res, next) {
     requestId,
   };
   queuedLogs.push(logEntry);
-
-  // Initialize context array
   contextsMap.set(requestId, []);
 
-  // concurrency logic
   const startProcessing = () => {
     next();
     onFinished(res, () => {
@@ -174,29 +142,25 @@ function processNextInQueue() {
 app.use(queueMiddleware);
 
 /* ------------------------------------------------------------------
-   5) The Proxy
+   The proxy - with ws: true to forward websockets
 ------------------------------------------------------------------ */
 app.use(
   '/',
   createProxyMiddleware({
     target: `http://localhost:${TARGET_PORT}`,
     changeOrigin: true,
+    ws: true,  // <--- enable WebSocket pass-through
   })
 );
 
 /* ------------------------------------------------------------------
-   6) Fallback
+   Fallback
 ------------------------------------------------------------------ */
 app.use((req, res) => {
-  console.log(`[DEBUG] Fallback route for ${req.method} ${req.url}`);
+  console.log(`[DEBUG] Fallback for ${req.method} ${req.url}`);
   res.status(404).send('Not Found');
 });
 
-/* ------------------------------------------------------------------
-   7) Start
------------------------------------------------------------------- */
 app.listen(PROXY_PORT, () => {
-  console.log(
-    `Proxy listening on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`
-  );
+  console.log(`Proxy with WS pass-through on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`);
 });
