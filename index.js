@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 
+// ---- Suppress All Node Warnings ----
+process.on('warning', () => {
+  // no-op (ignore all warnings)
+});
+
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
@@ -43,7 +48,8 @@ chopinRouter.use(express.json());
 // /_chopin/login?as=0x<40-hex>
 chopinRouter.get('/login', (req, res) => {
   if (req.headers['x-address']) {
-    return { success: true, address: req.headers['x-address'] }
+    // if the user already had a dev-address cookie => x-address is set
+    return res.json({ success: true, address: req.headers['x-address'] });
   }
   let address = req.query.as;
   if (!address || !/^0x[0-9A-Fa-f]{40}$/.test(address)) {
@@ -54,7 +60,7 @@ chopinRouter.get('/login', (req, res) => {
     httpOnly: false,
     sameSite: 'strict',
   });
-  res.json({ success: true, address: address });
+  res.json({ success: true, address });
 });
 
 // /_chopin/report-context?requestId=...
@@ -92,12 +98,12 @@ app.use('/_chopin', chopinRouter);
    Queue middleware
 ------------------------------------------------------------------ */
 function queueMiddleware(req, res, next) {
-  // If it's a WebSocket upgrade, skip queue
+  // If it's a WebSocket upgrade, skip
   if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
     return next();
   }
 
-  // If not in queueMethods, skip
+  // If method not in queue set, skip
   if (!queueMethods.includes(req.method.toUpperCase())) {
     return next();
   }
@@ -152,7 +158,7 @@ app.use(
   createProxyMiddleware({
     target: `http://localhost:${TARGET_PORT}`,
     changeOrigin: true,
-    ws: true,  // <--- enable WebSocket pass-through
+    ws: true,
   })
 );
 
