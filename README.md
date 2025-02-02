@@ -1,27 +1,46 @@
 # chopd
 
-A CLI tool to aid in the development of applications using the Chopin Framework.
+A CLI tool to aid in the development of applications using the Chopin Framework. It provides a **reverse proxy** with **request queueing**, **callback mechanisms**, **identity simulation**, **websocket pass-through**, and more—helpful for local development and testing.
 
 ## Features
-- A reverse proxy that queues `POST`, `PUT`, `PATCH`, and `DELETE` requests and executes them in order.
-- For queued requests, a header `x-callback-url` is added to the request that the destination server can use to send data back to the reverse proxy to be associated with the active request while it is being executed. This is used to cache responses so that when they are replayed, the same value can be deterministically retrieved. The data is stored in an ordered list.
-- Identity management endpoints such as `/_chopin/login[?as="0x..."]`, which sets a cookie `dev-address` that mimics Chopin Framework's embedded wallet system. This cookie contains the address of the currently logged in user. When this cookie is present, the reverse proxy will add the header `x-address` to the request with the value of the cookie.
-- Log endpoint `/_chopin/log`, which returns a list of all queued requests and their context (currently under development).
-- Passthrough for websockets to ensure compatibility with hot reloading dev tools
-- Executable via `npx chopd`.
-- Extensive test suite.
 
-# Prerequisites
+- **Queued Methods**: `POST`, `PUT`, `PATCH`, and `DELETE` requests are queued and executed in sequence, ensuring deterministic behavior under concurrent writes.
+- **`x-callback-url` Header**: For queued requests, the proxy injects an `x-callback-url` header so the destination server can send interim data (“context”) back to the proxy while the request is still active. This data is stored in an **ordered list** and can be referenced later.
+- **Chopin Identity Simulation**:  
+  - `/_chopin/login[?as="0x..."]` sets a `dev-address` cookie.  
+  - If present, the proxy adds an `x-address` header, mimicking Chopin Framework’s embedded wallet system.  
+  - Simplifies local dev by simulating a “logged in” user’s address.
+- **Logging**:  
+  - A **log endpoint** `/_chopin/logs` returns a list of all queued requests with their context logs (currently under development).  
+- **Websocket Passthrough**: Maintains compatibility with dev tools that require websockets (e.g., HMR).  
+- **Executable via `npx chopd`**: No global install needed—just run the CLI.  
+- **Extensive Test Suite**: Ensures reliability and consistent behavior under concurrency, partial context calls, identity simulation, etc.
 
-Node.js with a package manager like npm.
+## Prerequisites
 
-# Quick Start
-When running a Next.js application (port 3000), you can use this command to start running the reverse proxy on port 4000.
-```
+- [Node.js](https://nodejs.org) (version 14+ recommended).
+- npm or another Node package manager.
+
+## Quick Start
+
+When running a Next.js (or other) application on port 3000, you can start chopd on port 4000 by running:
+
+```bash
 npx chopd
 ```
 
-To specify the ports, you can use the following command:
+This sets up a reverse proxy on 4000 that forwards to 3000 (by default).
+
+To specify custom ports, supply them as arguments:
+
+```bash
+npx chopd [proxy-port] [target-port]
 ```
-npx chopd [your-web-apps-port] [proxy-port]
+
+For example:
+
+```bash
+npx chopd 4000 3000
 ```
+
+…will proxy requests on port 4000 to your app on port 3000.
