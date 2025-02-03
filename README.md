@@ -18,7 +18,7 @@ A CLI tool to aid in the development of applications using the Chopin Framework.
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org) (version 14+ recommended).
+- [Node.js](https://nodejs.org) (version 20+ recommended).
 - npm or another Node package manager.
 
 ## Quick Start
