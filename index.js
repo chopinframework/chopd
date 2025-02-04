@@ -219,5 +219,5 @@ app.use((req, res) => {
 });
 
 app.listen(PROXY_PORT, () => {
-  console.log(`Proxy with text-based partial context on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`);
+  console.log(`Proxy on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`);
 });
