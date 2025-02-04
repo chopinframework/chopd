@@ -6,7 +6,8 @@
     "chopd": "./index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -18,5 +19,8 @@
     "http-proxy-middleware": "^3.0.3",
     "on-finished": "^2.4.1",
     "raw-body": "^3.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }

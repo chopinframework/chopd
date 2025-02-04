@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-process.on('warning', () => { /* suppress all warnings */ });
-
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
@@ -9,9 +7,9 @@ const onFinished = require('on-finished');
 const rawBody = require('raw-body');
 const crypto = require('crypto');
 
-// Check built-in fetch
+// If Node 18, run with --experimental-fetch or use Node 20+
 if (typeof fetch !== 'function') {
-  console.error('[ERROR] No built-in fetch found. Use Node 20+ or Node 18 w/ --experimental-fetch.');
+  console.error('[ERROR] Built-in fetch not found. Use Node 20 or Node 18 w/ --experimental-fetch');
   process.exit(1);
 }
 
@@ -21,7 +19,7 @@ const TARGET_PORT = targetPortArg ? parseInt(targetPortArg, 10) : 3000;
 
 const app = express();
 
-// dev-address -> x-address
+// dev-address => x-address
 app.use(cookieParser());
 app.use((req, res, next) => {
   const devAddress = req.cookies['dev-address'];
@@ -31,18 +29,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// Data for concurrency & logs
-const queueMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+/* ------------------------------------------------------------------
+   Data structures
+------------------------------------------------------------------ */
+const queueMethods = ['POST','PUT','PATCH','DELETE'];
 let isProcessing = false;
 const requestQueue = [];
-const logs = []; // array of { requestId, request, response, contexts, ... }
-function pushLog(entry) { logs.push(entry); }
+const logs = [];
+const contextsMap = new Map();  // requestId -> string[]
 
-const contextsMap = new Map(); // requestId -> array of strings
+// We define a helper for partial contexts. We'll read the raw body as the context string.
+async function readRawString(req) {
+  // read entire request body up to 1MB or so
+  return (await rawBody(req, { limit: '1mb' })).toString('utf8');
+}
 
-// /_chopin routes
+/* ------------------------------------------------------------------
+   /_chopin routes
+------------------------------------------------------------------ */
 const chopinRouter = express.Router();
-chopinRouter.use(express.json());
+chopinRouter.use(express.json()); // only used for some routes, not the context route
 
 // /_chopin/login?as=0x...
 chopinRouter.get('/login', (req, res) => {
@@ -56,7 +62,8 @@ chopinRouter.get('/login', (req, res) => {
 });
 
 // /_chopin/report-context?requestId=...
-chopinRouter.post('/report-context', (req, res) => {
+// We directly read the body as a raw string => partial context
+chopinRouter.post('/report-context', async (req, res) => {
   const { requestId } = req.query;
   if (!requestId) {
     return res.status(400).json({ error: 'Missing requestId' });
@@ -65,17 +72,26 @@ chopinRouter.post('/report-context', (req, res) => {
   if (!arr) {
     return res.status(404).json({ error: 'No matching requestId' });
   }
-  const { context } = req.body || {};
-  if (typeof context !== 'string') {
-    return res.status(400).json({ error: 'Invalid context' });
+  // read raw text body
+  let contextString;
+  try {
+    contextString = await readRawString(req);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid raw body' });
   }
-  arr.push(context);
+  arr.push(contextString);
   res.json({ success: true });
 });
 
-// /_chopin/logs => shows all logs
+// /_chopin/logs => merges logs + contexts
 chopinRouter.get('/logs', (req, res) => {
-  res.json(logs);
+  const merged = logs.map(e => {
+    const copy = { ...e };
+    const cArr = contextsMap.get(e.requestId);
+    copy.contexts = cArr || [];
+    return copy;
+  });
+  res.json(merged);
 });
 
 app.use('/_chopin', chopinRouter);
@@ -83,16 +99,16 @@ app.use('/_chopin', chopinRouter);
 /* ------------------------------------------------------------------
    Manual concurrency for queued methods
 ------------------------------------------------------------------ */
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
   if (!queueMethods.includes(req.method.toUpperCase())) {
     return next();
   }
-  if (req.headers.upgrade && req.headers.upgrade.toLowerCase()==='websocket') {
+  if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
     return next();
   }
 
-  const task = () => handleQueuedRequest(req, res).catch((err) => {
-    console.error('[QUEUED] Error:', err);
+  const task = () => handleQueuedRequest(req, res).catch(err => {
+    console.error('[QUEUED] error:', err);
     if (!res.headersSent) {
       res.sendStatus(500);
     }
@@ -110,74 +126,69 @@ app.use((req, res, next) => {
 
 function processNext() {
   if (requestQueue.length>0) {
-    const nextTask = requestQueue.shift();
-    nextTask();
+    const fn = requestQueue.shift();
+    fn();
   } else {
     isProcessing = false;
   }
 }
 
 async function handleQueuedRequest(req, res) {
-  // read entire request body
+  // read entire request body for the queued method
   const bodyBuf = await rawBody(req, { limit: '2mb' });
   const requestId = crypto.randomUUID();
+  contextsMap.set(requestId, []); // store partial contexts in a separate array
 
-  // We'll store partial logs in contexts array
-  const contexts = [];
-  contextsMap.set(requestId, contexts);
-
-  const requestLog = {
+  const logEntry = {
     requestId,
     method: req.method,
     url: req.url,
     headers: { ...req.headers },
     body: bodyBuf.toString('utf8'),
-    contexts, // <--- rename partialContexts -> contexts
     timestamp: new Date().toISOString(),
   };
 
-  // build callback URL
+  // build x-callback-url
   const host = req.headers.host || `localhost:${PROXY_PORT}`;
   const callbackUrl = `http://${host}/_chopin/report-context?requestId=${requestId}`;
 
-  // remove hop-by-hop headers
+  // remove hop-by-hop from forward
   const forwardHeaders = { ...req.headers };
   delete forwardHeaders['host'];
   delete forwardHeaders['content-length'];
   delete forwardHeaders['transfer-encoding'];
-
   forwardHeaders['x-callback-url'] = callbackUrl;
 
   const targetUrl = `http://localhost:${TARGET_PORT}${req.url}`;
-  let targetRes, targetBuf;
 
+  let targetRes, targetBuf;
   try {
     targetRes = await fetch(targetUrl, {
       method: req.method,
       headers: forwardHeaders,
-      body: bodyBuf,
+      body: bodyBuf
     });
     targetBuf = Buffer.from(await targetRes.arrayBuffer());
   } catch (err) {
-    requestLog.responseError = err.message;
-    pushLog(requestLog);
+    logEntry.responseError = err.message;
+    logs.push(logEntry);
     res.status(502).json({ error: 'Bad Gateway', details: err.message });
     processNext();
     return;
   }
 
-  // store the response
-  requestLog.response = {
+  // store response
+  logEntry.response = {
     status: targetRes.status,
     statusText: targetRes.statusText,
     headers: Object.fromEntries(targetRes.headers.entries()),
     body: targetBuf.toString('utf8'),
   };
-  pushLog(requestLog);
+  logs.push(logEntry);
 
   // pass the response to client
   res.status(targetRes.status);
-  for (const [k,v] of Object.entries(requestLog.response.headers)) {
+  for (const [k,v] of Object.entries(logEntry.response.headers)) {
     if(!['transfer-encoding','content-length','connection'].includes(k.toLowerCase())) {
       res.setHeader(k, v);
     }
@@ -188,7 +199,7 @@ async function handleQueuedRequest(req, res) {
 }
 
 /* ------------------------------------------------------------------
-   For GET + WebSockets => pass-through proxy
+   Pass-through proxy for GET + websockets
 ------------------------------------------------------------------ */
 app.use(
   '/',
@@ -208,5 +219,5 @@ app.use((req, res) => {
 });
 
 app.listen(PROXY_PORT, () => {
-  console.log(`Proxy w/ manual queued methods on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`);
+  console.log(`Proxy with text-based partial context on http://localhost:${PROXY_PORT} -> :${TARGET_PORT}`);
 });

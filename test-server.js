@@ -41,38 +41,36 @@ app.get('/hello', (req, res) => {
   res.send('Hello from test-server');
 });
 
-// POST /slow -> concurrency check + partial context calls (if x-callback-url)
 app.post('/slow', async (req, res) => {
   console.log('[TEST-SERVER] POST /slow - body:', req.body);
   concurrencyCounter++;
-  if (concurrencyCounter > 1) {
-    concurrencyError = true;
-  }
+  if (concurrencyCounter>1) concurrencyError=true;
 
   const callbackUrl = req.headers['x-callback-url'];
   console.log('[TEST-SERVER] x-callback-url=', callbackUrl || '(none)');
 
-  // If we have a callback URL, let's send 3 partial contexts in order
   if (callbackUrl) {
-    // We'll do them ~100ms apart
-    for (let i = 1; i <= 3; i++) {
-      await new Promise(r => setTimeout(r, 100));
-      const contextStr = `context #${i}`;
-      console.log(`[TEST-SERVER] sending partial context: "${contextStr}"`);
-      // We call POST callbackUrl with { context: ... }
-      await safeFetch(callbackUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ context: contextStr }),
-      });
+    // do partial contexts in sequence
+    for (let i=1; i<=3; i++) {
+      const msg = `context #${i}`;
+      console.log('[TEST-SERVER] about to send partial context =>', msg);
+      try {
+        await fetch(callbackUrl, {
+          method:'POST',
+          headers:{ 'Content-Type':'text/plain' },
+          body: msg,
+        });
+      } catch(err) {
+        console.log('[TEST-SERVER] partial context call error =>', err.message);
+      }
     }
   }
 
-  // After 500ms total "work," respond
+  // final response AFTER partial contexts done
   setTimeout(() => {
     concurrencyCounter--;
-    res.status(201).json({ message: 'Slow endpoint done' });
-  }, 500);
+    res.status(201).json({ message:'Slow endpoint done' });
+  }, 100); 
 });
 
 // GET /check-concurrency -> { concurrencyError }
