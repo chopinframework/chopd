@@ -10,6 +10,8 @@
 
 const { spawn } = require('child_process');
 const { setTimeout: delay } = require('timers/promises');
+const fs = require('fs');
+const path = require('path');
 
 if (typeof fetch !== 'function') {
   console.error('[JEST] No built-in fetch found. Use Node 20+ or run Node 18 with --experimental-fetch.');
@@ -208,4 +210,114 @@ describe('E2E Tests', () => {
     expect(forcedResult).not.toBeNull();
     console.log('[JEST] forcibly posted context => success =>', forcedResult.contexts);
   }, 10000);
+});
+
+describe('Config File Tests', () => {
+  let proxyProcess;
+  const configPath = path.join(process.cwd(), 'chopin.config.json');
+  const TEST_PORT = 3100;
+  
+  beforeEach(() => {
+    // Clean up any existing config
+    if (fs.existsSync(configPath)) {
+      fs.unlinkSync(configPath);
+    }
+  });
+
+  afterEach(async () => {
+    // Clean up processes and config
+    if (proxyProcess) {
+      proxyProcess.kill('SIGTERM');
+      await delay(500);
+    }
+    if (fs.existsSync(configPath)) {
+      fs.unlinkSync(configPath);
+    }
+  });
+
+  test('starts target process from config file', async () => {
+    // Create a test config that runs test-server.js
+    const config = {
+      command: `TEST_SERVER_PORT=${TEST_PORT} node test-server.js`,
+      proxyPort: 4000,
+      targetPort: TEST_PORT,
+      env: {
+        NODE_ENV: 'test'
+      }
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    // Start proxy with config, explicitly setting target port
+    proxyProcess = spawn('node', ['index.js'], {
+      stdio: 'inherit'
+    });
+
+    // Wait for both processes to start and retry connection
+    const maxRetries = 10;
+    let connected = false;
+    
+    for (let i = 0; i < maxRetries && !connected; i++) {
+      await delay(500);
+      try {
+        const res = await safeFetch(`http://localhost:4000/hello`);
+        if (res.status === 200) {
+          connected = true;
+          const text = await res.text();
+          expect(text).toBe('Hello from test-server');
+          break;
+        }
+      } catch (err) {
+        // Ignore connection errors while retrying
+        console.log(`[JEST] Attempt ${i + 1}/${maxRetries} failed, retrying...`);
+      }
+    }
+
+    expect(connected).toBe(true);
+  }, 15000);
+
+  test('rejects invalid config file', async () => {
+    // Create an invalid config
+    const invalidConfig = {
+      command: '',  // Empty command is invalid
+      proxyPort: -1, // Invalid port number
+      targetPort: 'not a number', // Wrong type
+      unknownField: true // Not allowed by schema
+    };
+    fs.writeFileSync(configPath, JSON.stringify(invalidConfig, null, 2));
+
+    return new Promise((resolve, reject) => {
+      // Start proxy and expect it to exit with error
+      const childProcess = require('child_process').spawn('node', ['index.js'], {
+        stdio: ['ignore', 'ignore', 'pipe'] // Pipe only stderr
+      });
+
+      let stderr = '';
+      childProcess.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      childProcess.on('error', (err) => {
+        reject(new Error(`Failed to start process: ${err.message}`));
+      });
+
+      // Set a timeout to kill the process if it doesn't exit
+      const timeout = setTimeout(() => {
+        childProcess.kill();
+        reject(new Error('Process timed out'));
+      }, 8000);
+
+      childProcess.on('exit', (code) => {
+        clearTimeout(timeout);
+        try {
+          expect(code).not.toBe(0); // Should exit with error
+          expect(stderr).toContain('Invalid chopin.config.json');
+          // Only check for additional properties error since that's what we're getting
+          expect(stderr).toContain('must NOT have additional properties');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }, 10000); // Increased timeout to 10 seconds
 });

@@ -6,6 +6,10 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const onFinished = require('on-finished');
 const rawBody = require('raw-body');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const { spawn } = require('child-process-promise');
+const Ajv = require('ajv');
 
 // If Node 18, run with --experimental-fetch or use Node 20+
 if (typeof fetch !== 'function') {
@@ -13,9 +17,77 @@ if (typeof fetch !== 'function') {
   process.exit(1);
 }
 
+// Load and validate config
+let config = null;
+try {
+  const configPath = path.join(process.cwd(), 'chopin.config.json');
+  const schemaPath = path.join(__dirname, 'schema.json');
+  
+  if (fs.existsSync(configPath)) {
+    // Load schema and config
+    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    
+    // Validate against schema
+    const ajv = new Ajv();
+    const validate = ajv.compile(schema);
+    const valid = validate(config);
+    
+    if (!valid) {
+      console.error('Invalid chopin.config.json:');
+      validate.errors.forEach(error => {
+        console.error(`- ${error.instancePath} ${error.message}`);
+      });
+      process.exit(1);
+    }
+    
+    console.log('Found valid chopin.config.json:', config);
+  }
+} catch (err) {
+  console.error('Error reading/validating config:', err.message);
+  process.exit(1);
+}
+
 const [, , proxyPortArg, targetPortArg] = process.argv;
-const PROXY_PORT = proxyPortArg ? parseInt(proxyPortArg, 10) : 4000;
-const TARGET_PORT = targetPortArg ? parseInt(targetPortArg, 10) : 3000;
+const PROXY_PORT = proxyPortArg ? parseInt(proxyPortArg, 10) : (config?.proxyPort || 4000);
+const TARGET_PORT = targetPortArg ? parseInt(targetPortArg, 10) : (config?.targetPort || 3000);
+
+// Spawn the target process if config exists
+let targetProcess = null;
+if (config && config.command) {
+  console.log(`Starting target process: ${config.command}`);
+  const [cmd, ...args] = config.command.split(' ');
+  targetProcess = spawn(cmd, args, {
+    stdio: 'inherit',
+    shell: true,
+    env: {
+      ...process.env,
+      ...(config.env || {})
+    }
+  }).catch(err => {
+    console.error('Failed to start target process:', err.message);
+    process.exit(1);
+  });
+}
+
+// Handle process cleanup
+process.on('SIGINT', () => {
+  console.log('\nShutting down...');
+  if (targetProcess) {
+    console.log('Stopping target process...');
+    targetProcess.childProcess.kill();
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\nShutting down...');
+  if (targetProcess) {
+    console.log('Stopping target process...');
+    targetProcess.childProcess.kill();
+  }
+  process.exit(0);
+});
 
 const app = express();
 
