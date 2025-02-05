@@ -24,7 +24,18 @@ A CLI tool to aid in the development of applications using the Chopin Framework.
 
 ## Quick Start
 
-When running a Next.js (or other) application on port 3000, you can start chopd on port 4000 by running:
+Run the following command inside the root directory of you existing codebase:
+
+```bash
+npx chopd init
+```
+
+This will:
+1. Create a `chopin.config.json` with default settings
+2. Create a `.chopin` directory for internal use
+3. Add `.chopin` to your `.gitignore`
+
+Then start the proxy and your development server:
 
 ```bash
 npx chopd

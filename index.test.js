@@ -42,33 +42,69 @@ async function retryLogsCheck(checkFn, maxTries=5, intervalMs=300) {
   return null; // not found after retries
 }
 
-describe('E2E Tests', () => {
-  let serverProcess;
-  let proxyProcess;
+// Global test setup
+let serverProcess;
+let proxyProcess;
+const TEST_PORT = 3100;
+const configPath = path.join(process.cwd(), 'chopin.config.json');
+const chopinDir = path.join(process.cwd(), '.chopin');
+const gitignorePath = path.join(process.cwd(), '.gitignore');
+const gitignoreBackupPath = path.join(process.cwd(), '.gitignore.bak');
 
+// Helper to kill processes
+async function killProcess(proc) {
+  if (proc) {
+    try {
+      proc.kill('SIGTERM');
+      await delay(500);
+    } catch (err) {
+      console.error('Error killing process:', err);
+    }
+  }
+}
+
+beforeAll(async () => {
+  // Backup gitignore if it exists
+  if (fs.existsSync(gitignorePath)) {
+    fs.copyFileSync(gitignorePath, gitignoreBackupPath);
+  }
+});
+
+afterAll(async () => {
+  // Restore gitignore
+  if (fs.existsSync(gitignoreBackupPath)) {
+    if (fs.existsSync(gitignorePath)) {
+      fs.unlinkSync(gitignorePath);
+    }
+    fs.copyFileSync(gitignoreBackupPath, gitignorePath);
+    fs.unlinkSync(gitignoreBackupPath);
+  }
+});
+
+describe('E2E Tests', () => {
   beforeAll(async () => {
+    // Start test server
     console.log('[JEST] Starting test-server.js on port 3100...');
     serverProcess = spawn('node', ['test-server.js'], {
       stdio: 'inherit',
-      env: { ...process.env, TEST_SERVER_PORT:'3100' },
+      env: { ...process.env, TEST_SERVER_PORT: TEST_PORT },
     });
 
+    // Start proxy
     console.log('[JEST] Starting proxy (index.js) on port 4000->3100...');
-    proxyProcess = spawn('node', ['index.js', '4000', '3100'], {
+    proxyProcess = spawn('node', ['index.js', '4000', TEST_PORT.toString()], {
       stdio: 'inherit',
     });
 
-    // wait 1s
-    await delay(1000);
+    // Wait for servers to start
+    await delay(2000);
   }, 10000);
 
   afterAll(async () => {
     console.log('[JEST] Stopping processes...');
-    if (serverProcess) serverProcess.kill('SIGTERM');
-    if (proxyProcess) proxyProcess.kill('SIGTERM');
-    // small delay
-    await delay(500);
-  }, 5000);
+    await killProcess(serverProcess);
+    await killProcess(proxyProcess);
+  });
 
   test('GET /hello => 200', async () => {
     const res = await safeFetch('http://localhost:4000/hello');
@@ -213,26 +249,72 @@ describe('E2E Tests', () => {
 });
 
 describe('Config File Tests', () => {
-  let proxyProcess;
-  const configPath = path.join(process.cwd(), 'chopin.config.json');
-  const TEST_PORT = 3100;
-  
   beforeEach(() => {
-    // Clean up any existing config
-    if (fs.existsSync(configPath)) {
-      fs.unlinkSync(configPath);
+    // Clean up any existing files
+    [configPath, gitignorePath].forEach(file => {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+    });
+    if (fs.existsSync(chopinDir)) {
+      fs.rmdirSync(chopinDir);
     }
   });
 
   afterEach(async () => {
-    // Clean up processes and config
-    if (proxyProcess) {
-      proxyProcess.kill('SIGTERM');
-      await delay(500);
+    // Clean up any processes that might have been started
+    await killProcess(proxyProcess);
+    
+    // Clean up files
+    [configPath, gitignorePath].forEach(file => {
+      if (fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+    });
+    if (fs.existsSync(chopinDir)) {
+      fs.rmdirSync(chopinDir);
     }
-    if (fs.existsSync(configPath)) {
-      fs.unlinkSync(configPath);
-    }
+  });
+
+  test('init command creates necessary files', async () => {
+    // Run init command
+    const initProcess = require('child_process').spawnSync('node', ['index.js', 'init'], {
+      stdio: 'pipe'
+    });
+
+    expect(initProcess.status).toBe(0);
+    expect(fs.existsSync(configPath)).toBe(true);
+    expect(fs.existsSync(chopinDir)).toBe(true);
+    expect(fs.existsSync(gitignorePath)).toBe(true);
+
+    // Verify config content
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    expect(config).toEqual({
+      command: 'npm run dev',
+      proxyPort: 4000,
+      targetPort: 3000
+    });
+
+    // Verify .gitignore content
+    const gitignore = fs.readFileSync(gitignorePath, 'utf8');
+    expect(gitignore).toContain('.chopin');
+  });
+
+  test('init command preserves existing .gitignore', async () => {
+    // Create existing .gitignore
+    const existingContent = 'node_modules\n.env\n';
+    fs.writeFileSync(gitignorePath, existingContent);
+
+    // Run init command
+    const initProcess = require('child_process').spawnSync('node', ['index.js', 'init'], {
+      stdio: 'pipe'
+    });
+
+    expect(initProcess.status).toBe(0);
+    const gitignore = fs.readFileSync(gitignorePath, 'utf8');
+    expect(gitignore).toContain('node_modules');
+    expect(gitignore).toContain('.env');
+    expect(gitignore).toContain('.chopin');
   });
 
   test('starts target process from config file', async () => {
@@ -320,4 +402,56 @@ describe('Config File Tests', () => {
       });
     });
   }, 10000); // Increased timeout to 10 seconds
+
+  test('handles arguments correctly when installed globally', async () => {
+    // Create test config
+    const config = {
+      command: `TEST_SERVER_PORT=${TEST_PORT} node test-server.js`,
+      proxyPort: 4000,
+      targetPort: TEST_PORT
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    // Test different argument patterns
+    const testCases = [
+      {
+        args: ['init'],
+        expectedCode: 0,
+        description: 'init command'
+      },
+      {
+        args: ['4001', '3001'],
+        description: 'custom ports',
+        // Don't actually start the server, just check the output
+        expectedOutput: 'Proxy on http://localhost:4001'
+      },
+      {
+        args: [],
+        description: 'no arguments',
+        // Don't actually start the server, just check the output
+        expectedOutput: 'Proxy on http://localhost:4000'
+      }
+    ];
+
+    for (const testCase of testCases) {
+      console.log(`[JEST] Testing argument pattern: ${testCase.description}`);
+      
+      // Use spawnSync to ensure process completes
+      const process = require('child_process').spawnSync('node', ['index.js', ...testCase.args], {
+        stdio: 'pipe',
+        // Kill the process after 2 seconds to prevent hanging
+        timeout: 2000
+      });
+
+      if (testCase.expectedCode !== undefined) {
+        expect(process.status).toBe(testCase.expectedCode);
+      }
+
+      if (testCase.expectedOutput) {
+        const output = process.stdout.toString();
+        expect(output).toContain(testCase.expectedOutput);
+        expect(process.stderr.toString()).not.toContain('error');
+      }
+    }
+  }, 10000);
 });

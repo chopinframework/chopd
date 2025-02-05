@@ -11,6 +11,67 @@ const path = require('path');
 const { spawn } = require('child-process-promise');
 const Ajv = require('ajv');
 
+// Parse command line arguments
+function parseArgs(argv) {
+  // Remove node and script path
+  const args = argv.slice(2);
+  
+  // Handle commands
+  if (args[0] && !args[0].startsWith('-') && isNaN(args[0])) {
+    return {
+      command: args[0],
+      args: args.slice(1)
+    };
+  }
+
+  // Handle port arguments
+  return {
+    command: null,
+    proxyPort: args[0] ? parseInt(args[0], 10) : null,
+    targetPort: args[1] ? parseInt(args[1], 10) : null
+  };
+}
+
+const args = parseArgs(process.argv);
+
+// Handle commands
+if (args.command === 'init') {
+  // Create .chopin directory
+  const chopinDir = path.join(process.cwd(), '.chopin');
+  if (!fs.existsSync(chopinDir)) {
+    fs.mkdirSync(chopinDir);
+  }
+
+  // Create default config file if it doesn't exist
+  const configPath = path.join(process.cwd(), 'chopin.config.json');
+  if (!fs.existsSync(configPath)) {
+    const defaultConfig = {
+      command: 'npm run dev',
+      proxyPort: 4000,
+      targetPort: 3000
+    };
+    fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+    console.log('Created chopin.config.json with default settings');
+  }
+
+  // Update or create .gitignore
+  const gitignorePath = path.join(process.cwd(), '.gitignore');
+  let gitignoreContent = '';
+  
+  if (fs.existsSync(gitignorePath)) {
+    gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
+  }
+
+  if (!gitignoreContent.includes('.chopin')) {
+    gitignoreContent = gitignoreContent.trim() + '\n.chopin\n';
+    fs.writeFileSync(gitignorePath, gitignoreContent);
+    console.log('Added .chopin to .gitignore');
+  }
+
+  console.log('Initialization complete!');
+  process.exit(0);
+}
+
 // If Node 18, run with --experimental-fetch or use Node 20+
 if (typeof fetch !== 'function') {
   console.error('[ERROR] Built-in fetch not found. Use Node 20 or Node 18 w/ --experimental-fetch');
@@ -48,9 +109,8 @@ try {
   process.exit(1);
 }
 
-const [, , proxyPortArg, targetPortArg] = process.argv;
-const PROXY_PORT = proxyPortArg ? parseInt(proxyPortArg, 10) : (config?.proxyPort || 4000);
-const TARGET_PORT = targetPortArg ? parseInt(targetPortArg, 10) : (config?.targetPort || 3000);
+const PROXY_PORT = args.proxyPort || config?.proxyPort || 4000;
+const TARGET_PORT = args.targetPort || config?.targetPort || 3000;
 
 // Spawn the target process if config exists
 let targetProcess = null;
