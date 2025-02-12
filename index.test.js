@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const { setTimeout: delay } = require('timers/promises');
 const fs = require('fs');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 
 if (typeof fetch !== 'function') {
   console.error('[JEST] No built-in fetch found. Use Node 20+ or run Node 18 with --experimental-fetch.');
@@ -138,22 +139,41 @@ describe('E2E Tests', () => {
     expect(concurrencyError).toBe(false);
   });
 
-  test('dev-address => x-address', async () => {
+  test('dev-address => x-address (cookie and JWT)', async () => {
     const address = '0x1111111111111111111111111111111111111111';
     const loginRes = await safeFetch(`http://localhost:4000/_chopin/login?as=${address}`);
     expect(loginRes.ok).toBe(true);
 
+    const loginJson = await loginRes.json();
+    expect(loginJson.token).toBeTruthy();
+    
+    // Verify the token is a valid unsigned JWT with correct subject
+    const decoded = jwt.verify(loginJson.token, '', { algorithms: ['none'] });
+    expect(decoded.sub).toBe(address);
+
+    // Test cookie-based auth still works
     const cookie = loginRes.headers.get('set-cookie');
     console.log('[JEST] set-cookie =>', cookie);
     expect(cookie).toBeTruthy();
 
-    const echoRes = await safeFetch('http://localhost:4000/echo-headers', {
+    const cookieEchoRes = await safeFetch('http://localhost:4000/echo-headers', {
       headers: { Cookie: cookie },
     });
-    expect(echoRes.ok).toBe(true);
-    const hdr = await echoRes.json();
-    console.log('[JEST] GET /echo-headers =>', hdr);
-    expect(hdr['x-address']).toBe(address);
+    expect(cookieEchoRes.ok).toBe(true);
+    const cookieHeaders = await cookieEchoRes.json();
+    console.log('[JEST] GET /echo-headers (cookie) =>', cookieHeaders);
+    expect(cookieHeaders['x-address']).toBe(address);
+
+    // Test JWT-based auth works
+    const jwtEchoRes = await safeFetch('http://localhost:4000/echo-headers', {
+      headers: { 
+        'Authorization': `Bearer ${loginJson.token}`
+      },
+    });
+    expect(jwtEchoRes.ok).toBe(true);
+    const jwtHeaders = await jwtEchoRes.json();
+    console.log('[JEST] GET /echo-headers (JWT) =>', jwtHeaders);
+    expect(jwtHeaders['x-address']).toBe(address);
   });
 
   test('multi-context => partial contexts: "context #1", "#2", "#3"', async () => {

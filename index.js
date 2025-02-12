@@ -6,6 +6,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const onFinished = require('on-finished');
 const rawBody = require('raw-body');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child-process-promise');
@@ -189,8 +190,13 @@ chopinRouter.get('/login', (req, res) => {
     const randomHex = crypto.randomBytes(20).toString('hex');
     address = `0x${randomHex}`;
   }
+  
+  // Generate an unsigned JWT with the address as the subject
+  const token = jwt.sign({ sub: address }, '', { algorithm: 'none' });
+  
+  // Set both cookie and return JWT
   res.cookie('dev-address', address, { httpOnly: false, sameSite: 'strict' });
-  res.json({ success: true, address });
+  res.json({ success: true, address, token });
 });
 
 // /_chopin/report-context?requestId=...
@@ -227,6 +233,26 @@ chopinRouter.get('/logs', (req, res) => {
 });
 
 app.use('/_chopin', chopinRouter);
+
+// Add JWT auth middleware before the proxy
+app.use((req, res, next) => {
+  // Check for Authorization header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      // Verify unsigned token
+      const decoded = jwt.verify(token, '', { algorithms: ['none'] });
+      if (decoded.sub) {
+        req.headers['x-address'] = decoded.sub;
+      }
+    } catch (err) {
+      // Invalid token - just continue without setting x-address
+      console.log('[JWT] Invalid token:', err.message);
+    }
+  }
+  next();
+});
 
 /* ------------------------------------------------------------------
    Manual concurrency for queued methods

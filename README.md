@@ -7,8 +7,11 @@ A CLI tool to aid in the development of applications using the Chopin Framework.
 - **Queued Methods**: `POST`, `PUT`, `PATCH`, and `DELETE` requests are queued and executed in sequence, ensuring deterministic behavior under concurrent writes.
 - **`x-callback-url` Header**: For queued requests, the proxy injects an `x-callback-url` header so the destination server can send interim data ("context") back to the proxy while the request is still active. This data is stored in an **ordered list** and can be referenced later.
 - **Chopin Identity Simulation**:  
-  - `/_chopin/login[?as="0x..."]` sets a `dev-address` cookie.  
-  - If present, the proxy adds an `x-address` header, mimicking Chopin Framework's embedded wallet system.  
+  - `/_chopin/login[?as="0x..."]` sets a `dev-address` cookie and returns a JWT.  
+  - Identity can be provided via:
+    - Browser: `dev-address` cookie (set automatically)
+    - API/CLI: `Authorization: Bearer <jwt>` header
+  - The proxy adds an `x-address` header, mimicking Chopin Framework's embedded wallet system.  
   - Simplifies local dev by simulating a "logged in" user's address.
 - **Logging**:  
   - A **log endpoint** `/_chopin/logs` returns a list of all queued requests with their context logs (currently under development).  
@@ -56,6 +59,32 @@ npx chopd 4000 3000
 ```
 
 …will proxy requests on port 4000 to your app on port 3000.
+
+## Authentication
+
+The proxy supports two methods of authentication for development:
+
+1. **Browser-based Development** (Cookie)
+   ```javascript
+   // Cookie is set automatically when visiting /_chopin/login
+   // No manual steps needed
+   ```
+
+2. **API/CLI Development** (JWT)
+   ```javascript
+   // 1. Get a JWT token
+   const res = await fetch('http://localhost:4000/_chopin/login');
+   const { token } = await res.json();
+   
+   // 2. Use the token in subsequent requests
+   await fetch('http://localhost:4000/api/endpoint', {
+     headers: {
+       'Authorization': `Bearer ${token}`
+     }
+   });
+   ```
+
+Both methods will result in the proxy adding an `x-address` header to requests forwarded to your development server.
 
 ## Configuration
 
