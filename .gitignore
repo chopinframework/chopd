@@ -1,1 +1,18 @@
 node_modules
+
+# Rust specific ignores
+experimental-rust-cli/target/
+experimental-rust-cli/**/*.rs.bk
+experimental-rust-cli/Cargo.lock
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Debug files
+*.pdb
+
+# Generated files
+.chopin/
