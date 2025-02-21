@@ -237,6 +237,32 @@ chopinRouter.get('/status', (req, res) => {
   res.json({ status: "ok" });
 });
 
+// /_chopin/me => returns current address from cookie or JWT
+chopinRouter.get('/me', (req, res) => {
+  // Check cookie first
+  const devAddress = req.cookies['dev-address'];
+  if (devAddress) {
+    return res.json({ address: devAddress });
+  }
+  
+  // Then check JWT
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, '', { algorithms: ['none'] });
+      if (decoded.sub) {
+        return res.json({ address: decoded.sub });
+      }
+    } catch (err) {
+      // Invalid token - just continue
+    }
+  }
+  
+  // No address found
+  res.json({ address: null });
+});
+
 app.use('/_chopin', chopinRouter);
 
 // Add JWT auth middleware before the proxy

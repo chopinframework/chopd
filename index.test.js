@@ -121,6 +121,44 @@ describe('E2E Tests', () => {
     expect(json).toEqual({ status: "ok" });
   });
 
+  test('GET /_chopin/me => handles all auth scenarios', async () => {
+    // 1. No auth => null address
+    const noAuthRes = await safeFetch('http://localhost:4000/_chopin/me');
+    expect(noAuthRes.status).toBe(200);
+    let json = await noAuthRes.json();
+    expect(json).toEqual({ address: null });
+
+    // 2. Cookie-based auth
+    const address = '0x1111111111111111111111111111111111111111';
+    const loginRes = await safeFetch(`http://localhost:4000/_chopin/login?as=${address}`);
+    expect(loginRes.ok).toBe(true);
+    const cookie = loginRes.headers.get('set-cookie');
+    
+    const cookieAuthRes = await safeFetch('http://localhost:4000/_chopin/me', {
+      headers: { Cookie: cookie }
+    });
+    expect(cookieAuthRes.status).toBe(200);
+    json = await cookieAuthRes.json();
+    expect(json).toEqual({ address });
+
+    // 3. JWT-based auth
+    const { token } = await loginRes.json();
+    const jwtAuthRes = await safeFetch('http://localhost:4000/_chopin/me', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    expect(jwtAuthRes.status).toBe(200);
+    json = await jwtAuthRes.json();
+    expect(json).toEqual({ address });
+
+    // 4. Invalid JWT => null address
+    const invalidJwtRes = await safeFetch('http://localhost:4000/_chopin/me', {
+      headers: { 'Authorization': 'Bearer invalid.token.here' }
+    });
+    expect(invalidJwtRes.status).toBe(200);
+    json = await invalidJwtRes.json();
+    expect(json).toEqual({ address: null });
+  });
+
   test('GET /bogus-route => 404', async () => {
     const res = await safeFetch('http://localhost:4000/bogus-route');
     expect(res.status).toBe(404);
