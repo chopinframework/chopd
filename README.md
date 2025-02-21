@@ -13,8 +13,10 @@ A CLI tool to aid in the development of applications using the Chopin Framework.
     - API/CLI: `Authorization: Bearer <jwt>` header
   - The proxy adds an `x-address` header, mimicking Chopin Framework's embedded wallet system.  
   - Simplifies local dev by simulating a "logged in" user's address.
-- **Logging**:  
-  - A **log endpoint** `/_chopin/logs` returns a list of all queued requests with their context logs (currently under development).  
+  - `/_chopin/me` endpoint returns current user's address or null.
+- **Logging & Status**:  
+  - A **log endpoint** `/_chopin/logs` returns a list of all queued requests with their context logs.
+  - A **status endpoint** `/_chopin/status` returns server health status.
 - **Websocket Passthrough**: Maintains compatibility with dev tools that require websockets (e.g., HMR).  
 - **Executable via `npx chopd`**: No global install needed—just run the CLI.  
 - **Extensive Test Suite**: Ensures reliability and consistent behavior under concurrency, partial context calls, identity simulation, etc.
@@ -85,6 +87,35 @@ The proxy supports two methods of authentication for development:
    ```
 
 Both methods will result in the proxy adding an `x-address` header to requests forwarded to your development server.
+
+## API Endpoints
+
+The proxy provides several built-in endpoints under the `/_chopin` namespace:
+
+### Authentication Endpoints
+
+- **GET** `/_chopin/login?as=0x...`
+  - Authenticates a development user
+  - Query params:
+    - `as` (optional): Ethereum address to use. If not provided, generates a random address
+  - Returns:
+    - Sets `dev-address` cookie
+    - Returns `{ success: true, address: string, token: string }`
+
+- **GET** `/_chopin/me`
+  - Returns current authenticated user's address
+  - Authentication via cookie or JWT
+  - Returns `{ address: string | null }`
+
+### System Endpoints
+
+- **GET** `/_chopin/status`
+  - Simple health check endpoint
+  - Returns `{ status: "ok" }`
+
+- **GET** `/_chopin/logs`
+  - Returns list of all queued requests with their context logs
+  - Returns array of log entries with contexts
 
 ## Configuration
 
