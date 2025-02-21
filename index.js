@@ -232,6 +232,11 @@ chopinRouter.get('/logs', (req, res) => {
   res.json(merged);
 });
 
+// /_chopin/status => always returns "ok"
+chopinRouter.get('/status', (req, res) => {
+  res.json({ status: "ok" });
+});
+
 app.use('/_chopin', chopinRouter);
 
 // Add JWT auth middleware before the proxy

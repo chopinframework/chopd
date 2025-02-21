@@ -114,6 +114,13 @@ describe('E2E Tests', () => {
     console.log('[JEST] GET /hello =>', txt);
   });
 
+  test('GET /_chopin/status => returns ok', async () => {
+    const res = await safeFetch('http://localhost:4000/_chopin/status');
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({ status: "ok" });
+  });
+
   test('GET /bogus-route => 404', async () => {
     const res = await safeFetch('http://localhost:4000/bogus-route');
     expect(res.status).toBe(404);
