@@ -193,6 +193,37 @@ Schema version information is maintained in `versions.json`, which includes:
 
 After bumping the version, you can modify the new schema file to include your changes.
 
+#### Chopd Version Bumping
+
+When releasing a new version of the chopd application, you can use the chopd version bumping script to update the version and maintain compatibility with schema versions:
+
+```bash
+# Bump patch version (for backward-compatible bug fixes)
+npm run bump-chopd -- patch
+
+# Bump minor version (for backward-compatible new features)
+npm run bump-chopd -- minor
+
+# Bump major version (for breaking changes)
+npm run bump-chopd -- major
+
+# Specify specific schema versions to mark as compatible
+npm run bump-chopd -- patch --schema-versions 0.1.0,0.1.1
+
+# Test mode (doesn't modify files)
+npm run bump-chopd -- minor --test
+
+# Or run all tests at once
+npm run test-chopd-bump
+```
+
+The script will:
+1. Update the version in `package.json`
+2. Update the compatibility mapping in `versions.json` for all affected schema versions
+3. Update this README's compatibility table
+
+This ensures that as the chopd application evolves, there is clear documentation of which schema versions are compatible with each chopd version.
+
 If you're using an older configuration with a newer version of chopd, you'll receive appropriate warnings or instructions for updating your configuration.
 
 When you run `chopd`, it will:
