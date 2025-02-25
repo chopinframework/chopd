@@ -131,10 +131,6 @@ You can create a `chopin.config.json` file in your project root to configure the
   "command": "npm run dev",        // Required. Command to start your dev server
   "proxyPort": 4000,              // Optional. Port for the proxy (default: 4000)
   "targetPort": 3000,             // Optional. Port for your dev server (default: 3000)
-  "env": {                        // Optional. Environment variables for your dev server
-    "NODE_ENV": "development",
-    "PORT": "3000"
-  }
 }
 ```
 
@@ -144,8 +140,7 @@ You can create a `chopin.config.json` file in your project root to configure the
 |--------|------|----------|-------------|
 | `command` | string | Yes | Command to start your development server. Must not be empty. |
 | `proxyPort` | number | No | Port for the proxy server. Must be between 1-65535. Defaults to 4000. |
-| `targetPort` | number | No | Port for your development server. Must be between 1-65535. Defaults to 3000. |
-| `env` | object | No | Environment variables to pass to your development server. All values must be strings. |
+| `targetPort` | number | No | Port for your development server. 
 
 When you run `chopd`, it will:
 1. Read and validate the config file if it exists
