@@ -162,7 +162,9 @@ The `version` field in the configuration file helps ensure compatibility between
 | -------------- | ------------------------- |
 | 0.1.0          | 0.0.7+                    |
 
-#### Schema Version Bumping
+# Development
+
+## Schema Version Bumping
 
 When making changes to the schema structure, you can use the schema version bumping script to automate the versioning process:
 
@@ -202,7 +204,7 @@ Schema version information is maintained in `versions.json`, which includes:
 
 After bumping the version, you can modify the new schema file to include your changes.
 
-#### Chopd Version Bumping
+## Chopd Version Bumping
 
 When releasing a new version of the chopd application, you can use the chopd version bumping script to update the version and maintain compatibility with schema versions:
 
@@ -244,3 +246,11 @@ When you run `chopd`, it will:
 4. Handle graceful shutdown of both processes when you exit
 
 The proxy will use the ports specified in the config unless overridden by command line arguments.
+
+## Testing
+
+To run the test suite:
+
+```bash
+npm test
+```
