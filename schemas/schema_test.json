@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Test Schema for Schema Version Tests",
+  "description": "Test schema used in Jest tests for schema versioning",
+  "version": "0.1.0",
+  "required": ["version", "testProperty"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version (e.g. 0.1.0)",
+      "default": "0.1.0"
+    },
+    "testProperty": {
+      "type": "string",
+      "description": "A test property for testing purposes"
+    },
+    "optionalProperty": {
+      "type": "boolean",
+      "description": "An optional property for testing"
+    }
+  }
+} 

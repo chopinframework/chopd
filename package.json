@@ -8,7 +8,9 @@
   "scripts": {
     "start": "node index.js",
     "test": "jest",
-    "bump-schema": "node scripts/bump-schema-version.js"
+    "test:schema": "jest schema-version.test.js config-loader.test.js",
+    "bump-schema": "node scripts/bump-schema-version.js",
+    "test-bump": "node scripts/test-bump.js"
   },
   "keywords": [],
   "author": "",

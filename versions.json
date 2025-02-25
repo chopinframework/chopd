@@ -1,0 +1,14 @@
+{
+  "current": "0.1.0",
+  "minimum": "0.1.0",
+  "compatibility": {
+    "0.1.0": "0.0.6"
+  },
+  "history": [
+    {
+      "version": "0.1.0",
+      "released": "2024-02-25",
+      "changes": "Initial schema version"
+    }
+  ]
+} 

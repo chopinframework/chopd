@@ -171,13 +171,25 @@ npm run bump-schema -- major
 
 # Specify a specific chopd version for the compatibility mapping
 npm run bump-schema -- minor --chopd-version 0.0.7
+
+# Test mode (doesn't modify files)
+npm run bump-schema -- minor --test
+
+# Or run all tests at once
+npm run test-bump
 ```
 
 The script will:
 1. Create a new schema file with the bumped version number
-2. Update references in `src/utils/config.js`
+2. Update the `versions.json` file with the new version information
 3. Update the compatibility mapping
 4. Update this README's compatibility table
+
+Schema version information is maintained in `versions.json`, which includes:
+- The current schema version
+- Minimum compatible version
+- Version compatibility mapping
+- Version history with release dates
 
 After bumping the version, you can modify the new schema file to include your changes.
 

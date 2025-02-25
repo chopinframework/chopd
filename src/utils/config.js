@@ -3,15 +3,23 @@ const path = require('path');
 const Ajv = require('ajv');
 const semver = require('semver');
 
-// Current supported schema version - update this when releasing new schema versions
-const CURRENT_SCHEMA_VERSION = '0.1.0';
-// Minimum compatible schema version
-const MIN_SCHEMA_VERSION = '0.1.0';
+// Load version information from versions.json
+const versionsPath = path.join(__dirname, '../../versions.json');
+let versionInfo;
 
+try {
+  versionInfo = JSON.parse(fs.readFileSync(versionsPath, 'utf8'));
+} catch (err) {
+  console.error(`Error loading versions.json: ${err.message}`);
+  process.exit(1);
+}
+
+// Current supported schema version
+const CURRENT_SCHEMA_VERSION = versionInfo.current;
+// Minimum compatible schema version
+const MIN_SCHEMA_VERSION = versionInfo.minimum;
 // Map of schema versions to chopd versions
-const SCHEMA_COMPATIBILITY = {
-  '0.1.0': '0.0.6' // Current chopd version
-};
+const SCHEMA_COMPATIBILITY = versionInfo.compatibility;
 
 /**
  * Get the schema file path for a given version
