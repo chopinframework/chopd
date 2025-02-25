@@ -155,6 +155,32 @@ The `version` field in the configuration file helps ensure compatibility between
 |----------------|---------------------------|
 | 0.1.0          | 0.0.6+                   |
 
+#### Schema Version Bumping
+
+When making changes to the schema structure, you can use the schema version bumping script to automate the versioning process:
+
+```bash
+# Bump patch version (for backward-compatible bug fixes)
+npm run bump-schema -- patch
+
+# Bump minor version (for backward-compatible new features)
+npm run bump-schema -- minor
+
+# Bump major version (for breaking changes)
+npm run bump-schema -- major
+
+# Specify a specific chopd version for the compatibility mapping
+npm run bump-schema -- minor --chopd-version 0.0.7
+```
+
+The script will:
+1. Create a new schema file with the bumped version number
+2. Update references in `src/utils/config.js`
+3. Update the compatibility mapping
+4. Update this README's compatibility table
+
+After bumping the version, you can modify the new schema file to include your changes.
+
 If you're using an older configuration with a newer version of chopd, you'll receive appropriate warnings or instructions for updating your configuration.
 
 When you run `chopd`, it will:
