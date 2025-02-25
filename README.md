@@ -102,6 +102,11 @@ The proxy provides several built-in endpoints under the `/_chopin` namespace:
     - Sets `dev-address` cookie
     - Returns `{ success: true, address: string, token: string }`
 
+- **GET** `/_chopin/logout`
+  - Logs out the current user
+  - Clears the `dev-address` cookie
+  - Redirects to the root route (`/`)
+
 - **GET** `/_chopin/me`
   - Returns current authenticated user's address
   - Authentication via cookie or JWT

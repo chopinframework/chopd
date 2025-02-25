@@ -199,6 +199,14 @@ chopinRouter.get('/login', (req, res) => {
   res.json({ success: true, address, token });
 });
 
+// /_chopin/logout - clears the dev-address cookie
+chopinRouter.get('/logout', (req, res) => {
+  // Clear the dev-address cookie
+  res.clearCookie('dev-address');
+  // Redirect to the root route instead of returning JSON
+  res.redirect('/');
+});
+
 // /_chopin/report-context?requestId=...
 // We directly read the body as a raw string => partial context
 chopinRouter.post('/report-context', async (req, res) => {

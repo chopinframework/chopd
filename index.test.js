@@ -221,6 +221,45 @@ describe('E2E Tests', () => {
     expect(jwtHeaders['x-address']).toBe(address);
   });
 
+  test('GET /_chopin/logout => clears cookie and redirects', async () => {
+    // First login to set cookie
+    const address = '0x2222222222222222222222222222222222222222';
+    const loginRes = await safeFetch(`http://localhost:4000/_chopin/login?as=${address}`);
+    expect(loginRes.ok).toBe(true);
+    const cookie = loginRes.headers.get('set-cookie');
+    expect(cookie).toBeTruthy();
+    
+    // Verify cookie works by checking /me
+    const meRes = await safeFetch('http://localhost:4000/_chopin/me', {
+      headers: { Cookie: cookie }
+    });
+    const meJson = await meRes.json();
+    expect(meJson.address).toBe(address);
+    
+    // Call logout with redirect: false so we can check headers
+    const logoutRes = await safeFetch('http://localhost:4000/_chopin/logout', {
+      headers: { Cookie: cookie },
+      redirect: 'manual'  // Don't follow redirects
+    });
+    
+    // Verify redirect
+    expect(logoutRes.status).toBe(302);
+    expect(logoutRes.headers.get('location')).toBe('/');
+    
+    // Verify cookie is cleared
+    const setCookieHeader = logoutRes.headers.get('set-cookie');
+    expect(setCookieHeader).toBeTruthy();
+    expect(setCookieHeader).toContain('dev-address=;');
+    expect(setCookieHeader).toContain('Expires=');
+    
+    // Verify /me returns null after logout
+    const meAfterRes = await safeFetch('http://localhost:4000/_chopin/me', {
+      headers: { Cookie: setCookieHeader }
+    });
+    const meAfterJson = await meAfterRes.json();
+    expect(meAfterJson.address).toBe(null);
+  });
+
   test('multi-context => partial contexts: "context #1", "#2", "#3"', async () => {
     // do a single POST /slow with { test:'multi-context' }
     const bodyToSend = { test:'multi-context' };
