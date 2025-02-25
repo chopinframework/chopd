@@ -1,6 +1,6 @@
 {
   "name": "chopd",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "main": "index.js",
   "bin": {
     "chopd": "./index.js"
