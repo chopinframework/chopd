@@ -2,7 +2,6 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Chopin Config",
   "description": "Configuration schema for chopd proxy server",
-  "version": "0.1.0",
   "type": "object",
   "properties": {
     "version": {
@@ -36,6 +35,6 @@
       }
     }
   },
-  "required": ["command", "version"],
+  "required": ["command"],
   "additionalProperties": false
 }
