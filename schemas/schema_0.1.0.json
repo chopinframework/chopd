@@ -38,4 +38,4 @@
   },
   "required": ["command", "version"],
   "additionalProperties": false
-} 
+}

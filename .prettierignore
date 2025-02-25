@@ -1,0 +1,13 @@
+# Build artifacts
+dist
+build
+
+# Dependencies
+node_modules
+
+# Package lock files
+package-lock.json
+yarn.lock
+
+# Coverage directory
+coverage 

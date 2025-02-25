@@ -1,13 +1,13 @@
-const express = require('express');
-const cookieParser = require('cookie-parser');
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 
 // Import middleware
-const authMiddleware = require('./middleware/auth');
-const requestQueueMiddleware = require('./middleware/request-queue');
+const authMiddleware = require("./middleware/auth");
+const requestQueueMiddleware = require("./middleware/request-queue");
 
 // Import routes
-const { router: chopinRouter } = require('./routes/chopin');
+const { router: chopinRouter } = require("./routes/chopin");
 
 /**
  * Create the Express application
@@ -19,8 +19,8 @@ function createApp(proxyPort, targetPort) {
   const app = express();
 
   // Store ports in app settings
-  app.set('proxyPort', proxyPort);
-  app.set('targetPort', targetPort);
+  app.set("proxyPort", proxyPort);
+  app.set("targetPort", targetPort);
 
   // Parse cookies
   app.use(cookieParser());
@@ -29,28 +29,28 @@ function createApp(proxyPort, targetPort) {
   app.use(authMiddleware);
 
   // Chopin API routes
-  app.use('/_chopin', express.json(), chopinRouter);
+  app.use("/_chopin", express.json(), chopinRouter);
 
   // Request queue middleware for write operations
   app.use(requestQueueMiddleware);
 
   // Pass-through proxy for GET + websockets
   app.use(
-    '/',
+    "/",
     createProxyMiddleware({
       target: `http://localhost:${targetPort}`,
       changeOrigin: true,
-      ws: true
-    })
+      ws: true,
+    }),
   );
 
   // Fallback route
   app.use((req, res) => {
-    console.log('[DEBUG] fallback route for', req.method, req.url);
-    res.status(404).send('Not Found');
+    console.log("[DEBUG] fallback route for", req.method, req.url);
+    res.status(404).send("Not Found");
   });
 
   return app;
 }
 
-module.exports = createApp; 
+module.exports = createApp;

@@ -6,19 +6,19 @@ A CLI tool to aid in the development of applications using the Chopin Framework.
 
 - **Queued Methods**: `POST`, `PUT`, `PATCH`, and `DELETE` requests are queued and executed in sequence, ensuring deterministic behavior under concurrent writes.
 - **`x-callback-url` Header**: For queued requests, the proxy injects an `x-callback-url` header so the destination server can send interim data ("context") back to the proxy while the request is still active. This data is stored in an **ordered list** and can be referenced later.
-- **Chopin Identity Simulation**:  
-  - `/_chopin/login[?as="0x..."]` sets a `dev-address` cookie and returns a JWT.  
+- **Chopin Identity Simulation**:
+  - `/_chopin/login[?as="0x..."]` sets a `dev-address` cookie and returns a JWT.
   - Identity can be provided via:
     - Browser: `dev-address` cookie (set automatically)
     - API/CLI: `Authorization: Bearer <jwt>` header
-  - The proxy adds an `x-address` header, mimicking Chopin Framework's embedded wallet system.  
+  - The proxy adds an `x-address` header, mimicking Chopin Framework's embedded wallet system.
   - Simplifies local dev by simulating a "logged in" user's address.
   - `/_chopin/me` endpoint returns current user's address or null.
-- **Logging & Status**:  
+- **Logging & Status**:
   - A **log endpoint** `/_chopin/logs` returns a list of all queued requests with their context logs.
   - A **status endpoint** `/_chopin/status` returns server health status.
-- **Websocket Passthrough**: Maintains compatibility with dev tools that require websockets (e.g., HMR).  
-- **Executable via `npx chopd`**: No global install needed—just run the CLI.  
+- **Websocket Passthrough**: Maintains compatibility with dev tools that require websockets (e.g., HMR).
+- **Executable via `npx chopd`**: No global install needed—just run the CLI.
 - **Extensive Test Suite**: Ensures reliability and consistent behavior under concurrency, partial context calls, identity simulation, etc.
 - **Config File Support**: Automatically starts your development server alongside the proxy using `chopin.config.json`.
 
@@ -36,6 +36,7 @@ npx chopd init
 ```
 
 This will:
+
 1. Create a `chopin.config.json` with default settings
 2. Create a `.chopin` directory for internal use
 3. Add `.chopin` to your `.gitignore`
@@ -67,22 +68,24 @@ npx chopd 4000 3000
 The proxy supports two methods of authentication for development:
 
 1. **Browser-based Development** (Cookie)
+
    ```javascript
    // Cookie is set automatically when visiting /_chopin/login
    // No manual steps needed
    ```
 
 2. **API/CLI Development** (JWT)
+
    ```javascript
    // 1. Get a JWT token
-   const res = await fetch('http://localhost:4000/_chopin/login');
+   const res = await fetch("http://localhost:4000/_chopin/login");
    const { token } = await res.json();
-   
+
    // 2. Use the token in subsequent requests
-   await fetch('http://localhost:4000/api/endpoint', {
+   await fetch("http://localhost:4000/api/endpoint", {
      headers: {
-       'Authorization': `Bearer ${token}`
-     }
+       Authorization: `Bearer ${token}`,
+     },
    });
    ```
 
@@ -95,6 +98,7 @@ The proxy provides several built-in endpoints under the `/_chopin` namespace:
 ### Authentication Endpoints
 
 - **GET** `/_chopin/login?as=0x...`
+
   - Authenticates a development user
   - Query params:
     - `as` (optional): Ethereum address to use. If not provided, generates a random address
@@ -103,6 +107,7 @@ The proxy provides several built-in endpoints under the `/_chopin` namespace:
     - Returns `{ success: true, address: string, token: string }`
 
 - **GET** `/_chopin/logout`
+
   - Logs out the current user
   - Clears the `dev-address` cookie
   - Redirects to the root route (`/`)
@@ -115,6 +120,7 @@ The proxy provides several built-in endpoints under the `/_chopin` namespace:
 ### System Endpoints
 
 - **GET** `/_chopin/status`
+
   - Simple health check endpoint
   - Returns `{ status: "ok" }`
 
@@ -128,11 +134,12 @@ The `chopin.config.json` file supports the following options:
 
 ```json
 {
-  "version": "0.1.0",        // Schema version (required)
-  "command": "npm start",    // Command to start your dev server (required)
-  "proxyPort": 4000,         // Port for the proxy server (default: 4000)
-  "targetPort": 3000,        // Port your dev server runs on (default: 3000)
-  "env": {                   // Environment variables for your dev server
+  "version": "0.1.0", // Schema version (required)
+  "command": "npm start", // Command to start your dev server (required)
+  "proxyPort": 4000, // Port for the proxy server (default: 4000)
+  "targetPort": 3000, // Port your dev server runs on (default: 3000)
+  "env": {
+    // Environment variables for your dev server
     "NODE_ENV": "development"
   }
 }
@@ -152,8 +159,8 @@ The `version` field in the configuration file helps ensure compatibility between
 #### Compatibility Table
 
 | Schema Version | Compatible chopd Versions |
-|----------------|---------------------------|
-| 0.1.0          | 0.0.7+                   |
+| -------------- | ------------------------- |
+| 0.1.0          | 0.0.7+                    |
 
 #### Schema Version Bumping
 
@@ -180,12 +187,14 @@ npm run test-bump
 ```
 
 The script will:
+
 1. Create a new schema file with the bumped version number
 2. Update the `versions.json` file with the new version information
 3. Update the compatibility mapping
 4. Update this README's compatibility table
 
 Schema version information is maintained in `versions.json`, which includes:
+
 - The current schema version
 - Minimum compatible version
 - Version compatibility mapping
@@ -218,6 +227,7 @@ npm run test-chopd-bump
 ```
 
 The script will:
+
 1. Update the version in `package.json`
 2. Update the compatibility mapping in `versions.json` for all affected schema versions
 3. Update this README's compatibility table
@@ -227,6 +237,7 @@ This ensures that as the chopd application evolves, there is clear documentation
 If you're using an older configuration with a newer version of chopd, you'll receive appropriate warnings or instructions for updating your configuration.
 
 When you run `chopd`, it will:
+
 1. Read and validate the config file if it exists
 2. Start your development server using the specified command
 3. Start the proxy server

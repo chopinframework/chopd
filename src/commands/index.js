@@ -1,7 +1,7 @@
-const init = require('./init');
+const init = require("./init");
 
 const commands = {
-  init
+  init,
 };
 
 /**
@@ -19,5 +19,5 @@ function executeCommand(commandName, args) {
 }
 
 module.exports = {
-  executeCommand
-}; 
+  executeCommand,
+};

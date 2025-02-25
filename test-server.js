@@ -10,7 +10,7 @@
  * - 404 fallback
  */
 
-const express = require('express');
+const express = require("express");
 const app = express();
 app.use(express.json());
 
@@ -26,7 +26,7 @@ async function safeFetch(url, opts) {
     return res;
   } catch (err) {
     clearTimeout(id);
-    console.log('[TEST-SERVER] partial context call error:', err.message);
+    console.log("[TEST-SERVER] partial context call error:", err.message);
     return null; // we'll just ignore errors
   }
 }
@@ -36,32 +36,32 @@ let concurrencyCounter = 0;
 let concurrencyError = false;
 
 // GET /hello -> 200
-app.get('/hello', (req, res) => {
-  console.log('[TEST-SERVER] GET /hello');
-  res.send('Hello from test-server');
+app.get("/hello", (req, res) => {
+  console.log("[TEST-SERVER] GET /hello");
+  res.send("Hello from test-server");
 });
 
-app.post('/slow', async (req, res) => {
-  console.log('[TEST-SERVER] POST /slow - body:', req.body);
+app.post("/slow", async (req, res) => {
+  console.log("[TEST-SERVER] POST /slow - body:", req.body);
   concurrencyCounter++;
-  if (concurrencyCounter>1) concurrencyError=true;
+  if (concurrencyCounter > 1) concurrencyError = true;
 
-  const callbackUrl = req.headers['x-callback-url'];
-  console.log('[TEST-SERVER] x-callback-url=', callbackUrl || '(none)');
+  const callbackUrl = req.headers["x-callback-url"];
+  console.log("[TEST-SERVER] x-callback-url=", callbackUrl || "(none)");
 
   if (callbackUrl) {
     // do partial contexts in sequence
-    for (let i=1; i<=3; i++) {
+    for (let i = 1; i <= 3; i++) {
       const msg = `context #${i}`;
-      console.log('[TEST-SERVER] about to send partial context =>', msg);
+      console.log("[TEST-SERVER] about to send partial context =>", msg);
       try {
         await fetch(callbackUrl, {
-          method:'POST',
-          headers:{ 'Content-Type':'text/plain' },
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
           body: msg,
         });
-      } catch(err) {
-        console.log('[TEST-SERVER] partial context call error =>', err.message);
+      } catch (err) {
+        console.log("[TEST-SERVER] partial context call error =>", err.message);
       }
     }
   }
@@ -69,25 +69,25 @@ app.post('/slow', async (req, res) => {
   // final response AFTER partial contexts done
   setTimeout(() => {
     concurrencyCounter--;
-    res.status(201).json({ message:'Slow endpoint done' });
-  }, 100); 
+    res.status(201).json({ message: "Slow endpoint done" });
+  }, 100);
 });
 
 // GET /check-concurrency -> { concurrencyError }
-app.get('/check-concurrency', (req, res) => {
+app.get("/check-concurrency", (req, res) => {
   res.json({ concurrencyError });
 });
 
 // GET /echo-headers
-app.get('/echo-headers', (req, res) => {
-  console.log('[TEST-SERVER] GET /echo-headers');
+app.get("/echo-headers", (req, res) => {
+  console.log("[TEST-SERVER] GET /echo-headers");
   res.json(req.headers);
 });
 
 // 404 fallback
 app.use((req, res) => {
-  console.log('[TEST-SERVER] 404 for', req.method, req.url);
-  res.status(404).send('Not found on test-server');
+  console.log("[TEST-SERVER] 404 for", req.method, req.url);
+  res.status(404).send("Not found on test-server");
 });
 
 // Start on 3100 by default

@@ -12,7 +12,9 @@
     "bump-schema": "node scripts/bump-schema-version.js",
     "test-bump": "node scripts/test-bump.js",
     "bump-chopd": "node scripts/bump-chopd-version.js",
-    "test-chopd-bump": "node scripts/test-chopd-bump.js"
+    "test-chopd-bump": "node scripts/test-chopd-bump.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "keywords": [],
   "author": "",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "prettier": "^3.5.2",
     "semver": "^7.7.1"
   }
 }

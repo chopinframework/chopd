@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 
 // Ensure fetch is available
-if (typeof fetch !== 'function') {
-  console.error('[ERROR] Built-in fetch not found. Use Node 20 or Node 18 w/ --experimental-fetch');
+if (typeof fetch !== "function") {
+  console.error(
+    "[ERROR] Built-in fetch not found. Use Node 20 or Node 18 w/ --experimental-fetch",
+  );
   process.exit(1);
 }
 
 // Import utilities
-const { parseArgs } = require('./src/utils/args');
-const { loadConfig } = require('./src/utils/config');
-const { executeCommand } = require('./src/commands');
-const { startTargetProcess, setupCleanupHandlers } = require('./src/utils/process-manager');
-const createApp = require('./src/app');
+const { parseArgs } = require("./src/utils/args");
+const { loadConfig } = require("./src/utils/config");
+const { executeCommand } = require("./src/commands");
+const {
+  startTargetProcess,
+  setupCleanupHandlers,
+} = require("./src/utils/process-manager");
+const createApp = require("./src/app");
 
 // Parse arguments
 const args = parseArgs(process.argv);

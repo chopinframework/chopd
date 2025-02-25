@@ -1,7 +1,7 @@
-const express = require('express');
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const rawBody = require('raw-body');
+const express = require("express");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const rawBody = require("raw-body");
 
 const router = express.Router();
 
@@ -15,57 +15,57 @@ const contextsMap = new Map(); // requestId -> string[]
  * @returns {Promise<string>} Raw body as string
  */
 async function readRawString(req) {
-  return (await rawBody(req, { limit: '1mb' })).toString('utf8');
+  return (await rawBody(req, { limit: "1mb" })).toString("utf8");
 }
 
 // /_chopin/login?as=0x...
-router.get('/login', (req, res) => {
+router.get("/login", (req, res) => {
   let address = req.query.as;
   if (!address || !/^0x[0-9A-Fa-f]{40}$/.test(address)) {
-    const randomHex = crypto.randomBytes(20).toString('hex');
+    const randomHex = crypto.randomBytes(20).toString("hex");
     address = `0x${randomHex}`;
   }
-  
+
   // Generate an unsigned JWT with the address as the subject
-  const token = jwt.sign({ sub: address }, '', { algorithm: 'none' });
-  
+  const token = jwt.sign({ sub: address }, "", { algorithm: "none" });
+
   // Set both cookie and return JWT
-  res.cookie('dev-address', address, { httpOnly: false, sameSite: 'strict' });
+  res.cookie("dev-address", address, { httpOnly: false, sameSite: "strict" });
   res.json({ success: true, address, token });
 });
 
 // /_chopin/logout - clears the dev-address cookie
-router.get('/logout', (req, res) => {
+router.get("/logout", (req, res) => {
   // Clear the dev-address cookie
-  res.clearCookie('dev-address');
+  res.clearCookie("dev-address");
   // Redirect to the root route instead of returning JSON
-  res.redirect('/');
+  res.redirect("/");
 });
 
 // /_chopin/report-context?requestId=...
-router.post('/report-context', async (req, res) => {
+router.post("/report-context", async (req, res) => {
   const { requestId } = req.query;
   if (!requestId) {
-    return res.status(400).json({ error: 'Missing requestId' });
+    return res.status(400).json({ error: "Missing requestId" });
   }
   const arr = contextsMap.get(requestId);
   if (!arr) {
-    return res.status(404).json({ error: 'No matching requestId' });
+    return res.status(404).json({ error: "No matching requestId" });
   }
   // read raw text body
   let contextString;
   try {
     contextString = await readRawString(req);
   } catch (err) {
-    return res.status(400).json({ error: 'Invalid raw body' });
+    return res.status(400).json({ error: "Invalid raw body" });
   }
   arr.push(contextString);
   res.json({ success: true });
 });
 
 // /_chopin/logs => merges logs + contexts
-router.get('/logs', (req, res) => {
-  const merged = logs.map(e => {
+router.get("/logs", (req, res) => {
+  const merged = logs.map((e) => {
     const copy = { ...e };
     const cArr = contextsMap.get(e.requestId);
     copy.contexts = cArr || [];
@@ -75,24 +75,24 @@ router.get('/logs', (req, res) => {
 });
 
 // /_chopin/status => always returns "ok"
-router.get('/status', (req, res) => {
+router.get("/status", (req, res) => {
   res.json({ status: "ok" });
 });
 
 // /_chopin/me => returns current address from cookie or JWT
-router.get('/me', (req, res) => {
+router.get("/me", (req, res) => {
   // Check cookie first
-  const devAddress = req.cookies['dev-address'];
+  const devAddress = req.cookies["dev-address"];
   if (devAddress) {
     return res.json({ address: devAddress });
   }
-  
+
   // Then check JWT
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     try {
-      const decoded = jwt.verify(token, '', { algorithms: ['none'] });
+      const decoded = jwt.verify(token, "", { algorithms: ["none"] });
       if (decoded.sub) {
         return res.json({ address: decoded.sub });
       }
@@ -100,7 +100,7 @@ router.get('/me', (req, res) => {
       // Invalid token - just continue
     }
   }
-  
+
   // No address found
   res.json({ address: null });
 });
@@ -108,5 +108,5 @@ router.get('/me', (req, res) => {
 module.exports = {
   router,
   logs,
-  contextsMap
-}; 
+  contextsMap,
+};
