@@ -1,5 +1,11 @@
 const { spawn } = require("child-process-promise");
 
+// Check if we're running in a test environment
+const isTestEnvironment = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+
+// Store cleanup handlers so they can be removed
+const cleanupHandlers = [];
+
 /**
  * Start the target process based on config
  * @param {Object} config - The loaded config
@@ -7,6 +13,12 @@ const { spawn } = require("child-process-promise");
  */
 function startTargetProcess(config) {
   if (!config || !config.command) {
+    return null;
+  }
+
+  // In test environment, don't start a real process if not needed
+  if (isTestEnvironment && process.env.CHOPD_NO_PROCESS) {
+    console.log(`[TEST] Would start target process: ${config.command}`);
     return null;
   }
 
@@ -44,11 +56,28 @@ function setupCleanupHandlers(targetProcess) {
     process.exit(0);
   };
 
+  // Store references to cleanup handlers so they can be removed
+  cleanupHandlers.push(cleanup);
+
   process.on("SIGINT", cleanup);
   process.on("SIGTERM", cleanup);
+}
+
+/**
+ * Remove all cleanup handlers
+ * Used in tests to prevent Jest from hanging
+ */
+function removeCleanupHandlers() {
+  cleanupHandlers.forEach(handler => {
+    process.removeListener("SIGINT", handler);
+    process.removeListener("SIGTERM", handler);
+  });
+  // Clear the array
+  cleanupHandlers.length = 0;
 }
 
 module.exports = {
   startTargetProcess,
   setupCleanupHandlers,
+  removeCleanupHandlers
 };

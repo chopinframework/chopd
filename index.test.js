@@ -14,6 +14,10 @@ const fs = require("fs");
 const path = require("path");
 const jwt = require("jsonwebtoken");
 const { CURRENT_SCHEMA_VERSION } = require("./src/utils/config");
+const { removeCleanupHandlers } = require("./src/utils/process-manager");
+
+// Indicate we're in a test environment
+process.env.NODE_ENV = "test";
 
 if (typeof fetch !== "function") {
   console.error(
@@ -83,6 +87,9 @@ afterAll(async () => {
     fs.copyFileSync(gitignoreBackupPath, gitignorePath);
     fs.unlinkSync(gitignoreBackupPath);
   }
+  
+  // Remove any cleanup handlers to prevent Jest from hanging
+  removeCleanupHandlers();
 });
 
 // Helper function to create config files with correct schema version for tests
@@ -127,6 +134,9 @@ describe("E2E Tests", () => {
     console.log("[JEST] Stopping processes...");
     await killProcess(serverProcess);
     await killProcess(proxyProcess);
+    
+    // Remove cleanup handlers
+    removeCleanupHandlers();
   });
 
   test("GET /hello => 200", async () => {
@@ -438,6 +448,9 @@ describe("Config File Tests", () => {
     if (fs.existsSync(chopinDir)) {
       fs.rmdirSync(chopinDir);
     }
+    
+    // Remove cleanup handlers to prevent Jest from hanging
+    removeCleanupHandlers();
   });
 
   test("init command creates necessary files", async () => {

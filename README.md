@@ -40,6 +40,9 @@ This will:
 1. Create a `chopin.config.json` with default settings
 2. Create a `.chopin` directory for internal use
 3. Add `.chopin` to your `.gitignore`
+4. Install the current version of `chopd` as a dev dependency in your project
+
+> **Version Locking**: When you run `npx chopd init`, the exact version of chopd being used will be installed to your project's package.json. Future calls to `npx chopd` will automatically use this locally installed version, ensuring consistency and preventing breaking changes from newer versions.
 
 Then start the proxy and your development server:
 
