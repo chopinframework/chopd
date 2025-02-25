@@ -160,7 +160,7 @@ The `version` field in the configuration file helps ensure compatibility between
 
 | Schema Version | Compatible chopd Versions |
 | -------------- | ------------------------- |
-| 0.1.0          | 0.0.7+                    |
+| 0.1.0          | 0.0.8+                   |
 
 # Development
 
