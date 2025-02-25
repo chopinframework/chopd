@@ -2,7 +2,7 @@
   "current": "0.1.0",
   "minimum": "0.1.0",
   "compatibility": {
-    "0.1.0": "0.0.6"
+    "0.1.0": "0.0.7+"
   },
   "history": [
     {
@@ -11,4 +11,4 @@
       "changes": "Initial schema version"
     }
   ]
-} 
+}
