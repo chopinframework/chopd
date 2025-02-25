@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { CURRENT_SCHEMA_VERSION } = require('../utils/config');
 
 /**
  * Initialize a new Chopin project
@@ -15,12 +16,13 @@ function init() {
   const configPath = path.join(process.cwd(), 'chopin.config.json');
   if (!fs.existsSync(configPath)) {
     const defaultConfig = {
+      version: CURRENT_SCHEMA_VERSION,
       command: 'npm run dev',
       proxyPort: 4000,
       targetPort: 3000
     };
     fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
-    console.log('Created chopin.config.json with default settings');
+    console.log(`Created chopin.config.json with schema version ${CURRENT_SCHEMA_VERSION}`);
   }
 
   // Update or create .gitignore

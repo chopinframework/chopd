@@ -124,23 +124,38 @@ The proxy provides several built-in endpoints under the `/_chopin` namespace:
 
 ## Configuration
 
-You can create a `chopin.config.json` file in your project root to configure the proxy and automatically start your development server. The configuration file supports the following options:
+The `chopin.config.json` file supports the following options:
 
 ```json
 {
-  "command": "npm run dev",        // Required. Command to start your dev server
-  "proxyPort": 4000,              // Optional. Port for the proxy (default: 4000)
-  "targetPort": 3000,             // Optional. Port for your dev server (default: 3000)
+  "version": "0.1.0",        // Schema version (required)
+  "command": "npm start",    // Command to start your dev server (required)
+  "proxyPort": 4000,         // Port for the proxy server (default: 4000)
+  "targetPort": 3000,        // Port your dev server runs on (default: 3000)
+  "env": {                   // Environment variables for your dev server
+    "NODE_ENV": "development"
+  }
 }
 ```
 
-### Configuration Options
+### Version System
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `command` | string | Yes | Command to start your development server. Must not be empty. |
-| `proxyPort` | number | No | Port for the proxy server. Must be between 1-65535. Defaults to 4000. |
-| `targetPort` | number | No | Port for your development server. 
+The `version` field in the configuration file helps ensure compatibility between your config and the version of chopd you're using:
+
+- The current schema version is `0.1.0` (development version)
+- When the project reaches stability, we'll release version `1.0.0`
+- Schema versions are tied to specific chopd versions
+- Future breaking changes to the schema will increment the major version number
+- Minor additions will increment the minor version number
+- Bug fixes will increment the patch version
+
+#### Compatibility Table
+
+| Schema Version | Compatible chopd Versions |
+|----------------|---------------------------|
+| 0.1.0          | 0.0.6+                   |
+
+If you're using an older configuration with a newer version of chopd, you'll receive appropriate warnings or instructions for updating your configuration.
 
 When you run `chopd`, it will:
 1. Read and validate the config file if it exists

@@ -2,8 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Chopin Config",
   "description": "Configuration schema for chopd proxy server",
+  "version": "0.1.0",
   "type": "object",
   "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version in semver format (e.g. 0.1.0)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "default": "0.1.0"
+    },
     "command": {
       "type": "string",
       "description": "Command to start the target development server",
@@ -29,6 +36,6 @@
       }
     }
   },
-  "required": ["command"],
+  "required": ["command", "version"],
   "additionalProperties": false
 } 
